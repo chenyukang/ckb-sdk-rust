@@ -114,11 +114,13 @@ impl CkbTransactionBuilder for SudtTransactionBuilder {
             inputs: Vec::new(),
         };
 
+        eprintln!("here ......: {:?}", owner_mode);
         if owner_mode {
             inner_build(tx, change_builder, input_iter, &configuration, contexts)
         } else {
             let sudt_type_script =
                 build_sudt_type_script(configuration.network_info(), &sudt_owner_lock_script);
+            eprintln!("sudt_type_script: {:?}", sudt_type_script);
             let mut sudt_input_iter = input_iter.clone();
             sudt_input_iter.set_type_script(Some(sudt_type_script));
 
@@ -128,12 +130,16 @@ impl CkbTransactionBuilder for SudtTransactionBuilder {
                 .map(|data| u64::from_le_bytes(data.raw_data().as_ref().try_into().unwrap()))
                 .sum();
 
+            eprintln!("outputs_sudt_amount: {}", outputs_sudt_amount);
             let mut inputs_sudt_amount = 0;
 
             for input in sudt_input_iter {
+                eprintln!("input: {:?}", input);
                 let input = input?;
+                eprintln!("now output: {:?}", input.live_cell.output_data);
                 let input_amount =
                     u64::from_le_bytes(input.live_cell.output_data.as_ref().try_into().unwrap());
+                eprintln!("input_amount: {}", input_amount);
                 inputs_sudt_amount += input_amount;
                 input_iter.push_input(input);
                 if inputs_sudt_amount >= outputs_sudt_amount {
@@ -162,12 +168,24 @@ fn build_sudt_type_script(network_info: &NetworkInfo, sudt_owner_lock_script: &S
         NetworkType::Testnet => {
             h256!("0xc5e5dcf215925f7ef4dfaf5f4b4f105bc321c02776d6e7d52a1db3fcd9d011a4")
         }
+        NetworkType::Dev => {
+            let code_hash =
+                h256!("0xe1e354d6d643ad42724d40967e334984534e0367405c5ae42a9d7d63d77df419");
+            let res = Script::new_builder()
+                .code_hash(code_hash.pack())
+                .hash_type(ScriptHashType::Data1.into())
+                .args(sudt_owner_lock_script.calc_script_hash().as_bytes().pack())
+                .build();
+            return res;
+        }
         _ => panic!("Unsupported network type"),
     };
 
-    Script::new_builder()
+    let res = Script::new_builder()
         .code_hash(code_hash.pack())
         .hash_type(ScriptHashType::Type.into())
         .args(sudt_owner_lock_script.calc_script_hash().as_bytes().pack())
-        .build()
+        .build();
+    eprintln!("sudt type script: {:?}", res);
+    res
 }

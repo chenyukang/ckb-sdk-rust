@@ -1,5 +1,3 @@
-mod sudt;
-
 use anyhow::anyhow;
 use ckb_types::{
     bytes::{BufMut, Bytes, BytesMut},

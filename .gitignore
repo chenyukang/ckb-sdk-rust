@@ -5,3 +5,4 @@ test/Cargo.lock
 **/*.rs.bk
 /devtools/ci/travis-secret.asc
 /.vscode
+.DS_Store
