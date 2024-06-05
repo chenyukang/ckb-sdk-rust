@@ -74,6 +74,8 @@ impl SudtTransactionBuilder {
             &self.sudt_owner_lock_script,
         );
         let output_data = sudt_amount.to_le_bytes().pack();
+        eprintln!("sudt_amount: {:?}", sudt_amount);
+        eprintln!("output_data len: {:?}", output_data.as_slice().len());
         let dummy_output = CellOutput::new_builder()
             .lock(output_lock_script.into())
             .type_(Some(type_script).pack())
@@ -91,15 +93,28 @@ impl SudtTransactionBuilder {
 }
 
 fn parse_u128(data: &[u8]) -> Result<u128, TxBuilderError> {
+    eprintln!(
+        "data length: {:?} > {:?}",
+        data.len(),
+        std::mem::size_of::<u128>()
+    );
+    eprintln!("data: {:?}", data);
     if data.len() > std::mem::size_of::<u128>() {
         return Err(TxBuilderError::Other(anyhow!(
             "stdt_amount bytes length greater than 128"
         )));
     }
 
-    let mut data_bytes: Vec<u8> = data.into();
-    data_bytes.extend(std::iter::repeat(0_u8).take(std::mem::size_of::<u128>() - data.len()));
-    Ok(u128::from_le_bytes(data_bytes.try_into().unwrap()))
+    // let mut amount_bytes = [0u8; 16];
+    // amount_bytes.copy_from_slice(&data.as_ref()[4..20]);
+    // let amount = u128::from_le_bytes(amount_bytes);
+    // eprintln!("amount: {:?}", amount);
+    // Ok(amount)
+    let data_bytes: Vec<u8> = data.into();
+    //data_bytes.extend(std::iter::repeat(0_u8).take(std::mem::size_of::<u128>() - data.len()));
+    let amount = u128::from_le_bytes(data_bytes.try_into().unwrap());
+    eprintln!("amount: {:?}", amount);
+    return Ok(amount);
 }
 
 impl CkbTransactionBuilder for SudtTransactionBuilder {
@@ -132,20 +147,27 @@ impl CkbTransactionBuilder for SudtTransactionBuilder {
         } else {
             let sudt_type_script =
                 build_sudt_type_script(configuration.network_info(), &sudt_owner_lock_script);
+            eprintln!("sudt_type_script: {:?}", sudt_type_script);
             let mut sudt_input_iter = input_iter.clone();
             sudt_input_iter.set_type_script(Some(sudt_type_script));
 
             let outputs_sudt_amount: u128 = tx
                 .outputs_data
                 .iter()
-                .map(|data| parse_u128(data.as_slice()))
+                .map(|data| {
+                    let data: Vec<u8> = data.unpack();
+                    parse_u128(data.as_slice())
+                })
                 .collect::<Result<Vec<u128>, TxBuilderError>>()
                 .map(|u128_vec| u128_vec.iter().sum())?;
 
+            eprintln!("outputs_sudt_amount: {}", outputs_sudt_amount);
             let mut inputs_sudt_amount = 0;
 
             for input in sudt_input_iter {
+                eprintln!("input: {:?}", input);
                 let input = input?;
+
                 let input_amount = parse_u128(input.live_cell.output_data.as_ref())?;
                 inputs_sudt_amount += input_amount;
                 input_iter.push_input(input);
@@ -175,12 +197,24 @@ fn build_sudt_type_script(network_info: &NetworkInfo, sudt_owner_lock_script: &S
         NetworkType::Testnet => {
             h256!("0xc5e5dcf215925f7ef4dfaf5f4b4f105bc321c02776d6e7d52a1db3fcd9d011a4")
         }
+        NetworkType::Dev => {
+            let code_hash =
+                h256!("0xe1e354d6d643ad42724d40967e334984534e0367405c5ae42a9d7d63d77df419");
+            let res = Script::new_builder()
+                .code_hash(code_hash.pack())
+                .hash_type(ScriptHashType::Data1.into())
+                .args(sudt_owner_lock_script.calc_script_hash().as_bytes().pack())
+                .build();
+            return res;
+        }
         _ => panic!("Unsupported network type"),
     };
 
-    Script::new_builder()
+    let res = Script::new_builder()
         .code_hash(code_hash.pack())
         .hash_type(ScriptHashType::Type.into())
         .args(sudt_owner_lock_script.calc_script_hash().as_bytes().pack())
-        .build()
+        .build();
+    eprintln!("sudt type script: {:?}", res);
+    res
 }

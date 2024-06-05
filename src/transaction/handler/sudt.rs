@@ -1,13 +1,12 @@
+use crate::{
+    core::TransactionBuilder, tx_builder::TxBuilderError, NetworkInfo, NetworkType, ScriptGroup,
+    ScriptId,
+};
 use ckb_types::{
     core::DepType,
     h256,
     packed::{CellDep, OutPoint},
     prelude::*,
-};
-
-use crate::{
-    core::TransactionBuilder, tx_builder::TxBuilderError, NetworkInfo, NetworkType, ScriptGroup,
-    ScriptId,
 };
 
 use super::{HandlerContext, ScriptHandler};
@@ -50,6 +49,19 @@ impl SudtHandler {
                     "0xc5e5dcf215925f7ef4dfaf5f4b4f105bc321c02776d6e7d52a1db3fcd9d011a4"
                 )),
             )
+        } else if network.network_type == NetworkType::Dev {
+            (
+                OutPoint::new_builder()
+                    .tx_hash(
+                        h256!("0x6df1c2c75152567978b2dcae07ff18d484f986e9934afd1e631ffdab1cbf0efd")
+                            .pack(),
+                    )
+                    .index(0u32.pack())
+                    .build(),
+                ScriptId::new_type(h256!(
+                    "0xe1e354d6d643ad42724d40967e334984534e0367405c5ae42a9d7d63d77df419"
+                )),
+            )
         } else {
             return Err(TxBuilderError::UnsupportedNetworkType(network.network_type));
         };
@@ -63,6 +75,13 @@ impl SudtHandler {
             cell_deps: vec![cell_dep],
             sudt_script_id,
         })
+    }
+
+    pub fn new_with_customize(cell_deps: Vec<CellDep>, sudt_script_id: ScriptId) -> Self {
+        Self {
+            cell_deps,
+            sudt_script_id,
+        }
     }
 }
 

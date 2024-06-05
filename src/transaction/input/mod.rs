@@ -3,9 +3,9 @@ use ckb_types::packed::Script;
 pub use transaction_input::TransactionInput;
 
 use crate::{
-    rpc::ckb_indexer::SearchMode,
     traits::{
-        CellCollector, CellCollectorError, CellQueryOptions, DefaultCellCollector, ValueRangeOption,
+        CellCollector, CellCollectorError, CellQueryOptions, DefaultCellCollector, QueryOrder,
+        ValueRangeOption,
     },
     types::NetworkInfo,
     Address,
@@ -79,18 +79,26 @@ impl InputIterator {
             }
 
             if let Some(lock_script) = self.lock_scripts.last() {
+                eprintln!("lock_script: {:?}", lock_script);
+                eprintln!("type_script: {:?}", self.type_script);
                 let mut query = CellQueryOptions::new_lock(lock_script.clone());
-                query.script_search_mode = Some(SearchMode::Exact);
+                query.script_search_mode = None;
                 if let Some(type_script) = &self.type_script {
                     query.secondary_script = Some(type_script.clone());
+                    query.data_len_range = Some(ValueRangeOption::new_min(16));
+                    query.order = QueryOrder::Desc;
                 } else {
                     query.secondary_script_len_range = Some(ValueRangeOption::new_exact(0));
                     query.data_len_range = Some(ValueRangeOption::new_exact(0));
                 };
+                eprintln!("query: {:?}", query);
                 let (live_cells, _capacity) =
                     self.cell_collector.collect_live_cells(&query, true)?;
+                eprintln!("finished : {:?}", live_cells);
                 if live_cells.is_empty() {
+                    eprintln!("pop lock script: {:?}", lock_script);
                     self.lock_scripts.pop();
+                    eprintln!("lock_scripts: {:?}", self.lock_scripts);
                 } else {
                     self.buffer_inputs = live_cells
                         .into_iter()
