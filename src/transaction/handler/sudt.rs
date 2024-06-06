@@ -53,7 +53,7 @@ impl SudtHandler {
             (
                 OutPoint::new_builder()
                     .tx_hash(
-                        h256!("0x6df1c2c75152567978b2dcae07ff18d484f986e9934afd1e631ffdab1cbf0efd")
+                        h256!("0xc24e3b64b9fb890ec319115713742029cefbd8cd2c9a47e9b4547192b23f3985")
                             .pack(),
                     )
                     .index(0u32.pack())

@@ -88,7 +88,7 @@ impl ScriptHandler for Secp256k1Blake160SighashAllScriptHandler {
         } else if network.network_type == NetworkType::Dev {
             OutPoint::new_builder()
                 .tx_hash(
-                    h256!("0x6df1c2c75152567978b2dcae07ff18d484f986e9934afd1e631ffdab1cbf0efd")
+                    h256!("0x8688aa9d58d996fc20af130b7f738425c8cef3eb73d418ff0b722cf2967e8539")
                         .pack(),
                 )
                 .index(0u32.pack())

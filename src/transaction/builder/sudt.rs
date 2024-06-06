@@ -74,8 +74,6 @@ impl SudtTransactionBuilder {
             &self.sudt_owner_lock_script,
         );
         let output_data = sudt_amount.to_le_bytes().pack();
-        eprintln!("sudt_amount: {:?}", sudt_amount);
-        eprintln!("output_data len: {:?}", output_data.as_slice().len());
         let dummy_output = CellOutput::new_builder()
             .lock(output_lock_script.into())
             .type_(Some(type_script).pack())
@@ -93,28 +91,39 @@ impl SudtTransactionBuilder {
 }
 
 fn parse_u128(data: &[u8]) -> Result<u128, TxBuilderError> {
-    eprintln!(
-        "data length: {:?} > {:?}",
-        data.len(),
-        std::mem::size_of::<u128>()
-    );
-    eprintln!("data: {:?}", data);
     if data.len() > std::mem::size_of::<u128>() {
         return Err(TxBuilderError::Other(anyhow!(
             "stdt_amount bytes length greater than 128"
         )));
     }
-
-    // let mut amount_bytes = [0u8; 16];
-    // amount_bytes.copy_from_slice(&data.as_ref()[4..20]);
-    // let amount = u128::from_le_bytes(amount_bytes);
-    // eprintln!("amount: {:?}", amount);
-    // Ok(amount)
     let data_bytes: Vec<u8> = data.into();
-    //data_bytes.extend(std::iter::repeat(0_u8).take(std::mem::size_of::<u128>() - data.len()));
     let amount = u128::from_le_bytes(data_bytes.try_into().unwrap());
-    eprintln!("amount: {:?}", amount);
     return Ok(amount);
+}
+
+impl SudtTransactionBuilder {
+    pub fn check(&self) -> Result<u128, TxBuilderError> {
+        let Self {
+            configuration,
+            input_iter,
+            sudt_owner_lock_script,
+            ..
+        } = self;
+
+        let sudt_type_script =
+            build_sudt_type_script(configuration.network_info(), &sudt_owner_lock_script);
+        eprintln!("sudt_type_script: {:?}", sudt_type_script);
+        let mut sudt_input_iter = input_iter.clone();
+        sudt_input_iter.set_type_script(Some(sudt_type_script));
+
+        let mut sum = 0;
+        for input in sudt_input_iter {
+            let input = input?;
+            let input_amount = parse_u128(input.live_cell.output_data.as_ref())?;
+            sum += input_amount;
+        }
+        Ok(sum)
+    }
 }
 
 impl CkbTransactionBuilder for SudtTransactionBuilder {
@@ -145,6 +154,7 @@ impl CkbTransactionBuilder for SudtTransactionBuilder {
         if owner_mode {
             inner_build(tx, change_builder, input_iter, &configuration, contexts)
         } else {
+            eprintln!("sudt_owner_lock_script: {:?}", sudt_owner_lock_script);
             let sudt_type_script =
                 build_sudt_type_script(configuration.network_info(), &sudt_owner_lock_script);
             eprintln!("sudt_type_script: {:?}", sudt_type_script);
@@ -154,10 +164,7 @@ impl CkbTransactionBuilder for SudtTransactionBuilder {
             let outputs_sudt_amount: u128 = tx
                 .outputs_data
                 .iter()
-                .map(|data| {
-                    let data: Vec<u8> = data.unpack();
-                    parse_u128(data.as_slice())
-                })
+                .map(|data| parse_u128(data.raw_data().as_ref()))
                 .collect::<Result<Vec<u128>, TxBuilderError>>()
                 .map(|u128_vec| u128_vec.iter().sum())?;
 
@@ -165,7 +172,6 @@ impl CkbTransactionBuilder for SudtTransactionBuilder {
             let mut inputs_sudt_amount = 0;
 
             for input in sudt_input_iter {
-                eprintln!("input: {:?}", input);
                 let input = input?;
 
                 let input_amount = parse_u128(input.live_cell.output_data.as_ref())?;

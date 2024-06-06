@@ -79,8 +79,6 @@ impl InputIterator {
             }
 
             if let Some(lock_script) = self.lock_scripts.last() {
-                eprintln!("lock_script: {:?}", lock_script);
-                eprintln!("type_script: {:?}", self.type_script);
                 let mut query = CellQueryOptions::new_lock(lock_script.clone());
                 query.script_search_mode = None;
                 if let Some(type_script) = &self.type_script {
@@ -91,14 +89,13 @@ impl InputIterator {
                     query.secondary_script_len_range = Some(ValueRangeOption::new_exact(0));
                     query.data_len_range = Some(ValueRangeOption::new_exact(0));
                 };
+
                 eprintln!("query: {:?}", query);
                 let (live_cells, _capacity) =
                     self.cell_collector.collect_live_cells(&query, true)?;
                 eprintln!("finished : {:?}", live_cells);
                 if live_cells.is_empty() {
-                    eprintln!("pop lock script: {:?}", lock_script);
                     self.lock_scripts.pop();
-                    eprintln!("lock_scripts: {:?}", self.lock_scripts);
                 } else {
                     self.buffer_inputs = live_cells
                         .into_iter()
