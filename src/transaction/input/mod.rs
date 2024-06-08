@@ -90,10 +90,10 @@ impl InputIterator {
                     query.data_len_range = Some(ValueRangeOption::new_exact(0));
                 };
 
-                eprintln!("query: {:?}", query);
+                //eprintln!("query: {:?}", query);
                 let (live_cells, _capacity) =
                     self.cell_collector.collect_live_cells(&query, true)?;
-                eprintln!("finished : {:?}", live_cells);
+                //eprintln!("finished : {:?}", live_cells);
                 if live_cells.is_empty() {
                     self.lock_scripts.pop();
                 } else {

@@ -67,7 +67,19 @@ fn test_amount() {
     let v1 = parse_u128(&bytes).unwrap();
     eprintln!("v1: {}", v1);
 
-    let bytes = hex::decode("400d0300000000000000000000000000").expect("Decoding failed");
+    let bytes = hex::decode("a0860100000000000000000000000000").expect("Decoding failed");
+    let v1 = parse_u128(&bytes).unwrap();
+    eprintln!("v1: {}", v1);
+
+    let bytes = hex::decode("82090000000000000000000000000000").expect("Decoding failed");
+    let v1 = parse_u128(&bytes).unwrap();
+    eprintln!("v1: {}", v1);
+
+    let bytes = hex::decode("ce810100000000000000000000000000").expect("Decoding failed");
+    let v1 = parse_u128(&bytes).unwrap();
+    eprintln!("v1: {}", v1);
+
+    let bytes = hex::decode("f0810100000000000000000000000000").expect("Decoding failed");
     let v1 = parse_u128(&bytes).unwrap();
     eprintln!("v1: {}", v1);
 }
@@ -97,16 +109,28 @@ fn send(
     } else {
         sender.clone()
     };
-    let mut builder = SudtTransactionBuilder::new(configuration, iterator, &udt_owner, false)?;
-    let account = builder.check()?;
-    eprintln!("account: {}", account);
+    const CKB_SHANNONS: u64 = 100_000_000;
 
-    builder.add_output(&receiver, amount);
+    let mut builder = SudtTransactionBuilder::new(configuration, iterator, &udt_owner, false)?;
+    let (account_ckb_amount, account_udt_amount) = builder.check()?;
+    eprintln!(
+        "account: {:?} udt_amount: {}",
+        account_ckb_amount / CKB_SHANNONS,
+        account_udt_amount
+    );
+
+    let ckb_amount = 100000000 * CKB_SHANNONS;
+    eprintln!(
+        "send ckb_amount: {} udt_amount: {}",
+        ckb_amount / CKB_SHANNONS,
+        amount
+    );
+    builder.add_output_with_capacity(&receiver, amount, ckb_amount);
 
     let mut tx_with_groups = builder.build(&Default::default())?;
 
-    let json_tx = ckb_jsonrpc_types::TransactionView::from(tx_with_groups.get_tx_view().clone());
-    println!("tx: {}", serde_json::to_string_pretty(&json_tx).unwrap());
+    let _json_tx = ckb_jsonrpc_types::TransactionView::from(tx_with_groups.get_tx_view().clone());
+    //println!("tx: {}", serde_json::to_string_pretty(&json_tx).unwrap());
 
     let private_keys = vec![sender_info.1.clone()];
     TransactionSigner::new(&network_info).sign_transaction(
@@ -124,8 +148,12 @@ fn send(
     // let tx_hash = CkbRpcClient::new(network_info.url.as_str())
     //     .send_transaction(json_tx.inner, None)
     //     .expect("send transaction");
-
     // println!(">>> tx {} sent! <<<", tx_hash);
+
+    let result = CkbRpcClient::new(network_info.url.as_str())
+        .test_tx_pool_accept(json_tx.inner, None)
+        .expect("accept transaction");
+    println!(">>> tx result: {:?}  <<<", result);
 
     Ok(())
 }
@@ -137,7 +165,9 @@ fn main() {
         ("ckt1qzda0cr08m85hc8jlnfp3zer7xulejywt49kt2rr0vthywaa50xwsqtrnd9f2lh5vlwlj23dedf7jje65cdj8qs7q4awr", h256!("0xd00c06bfd800d27397002dca6fb0993d5ba6399b4238b2f29ee9deb975ffffff")),
     ];
 
-    //send(&wallets[0], wallets[1].0, 100000, None).unwrap();
+    //test_amount();
+    //send(&wallets[0], wallets[1].0, 10000, None).unwrap();
+    send(&wallets[0], wallets[2].0, 10000, None).unwrap();
     //send(&wallets[1], wallets[2].0, 100000, Some(wallets[0].0)).unwrap();
-    send(&wallets[2], wallets[0].0, 100000, Some(wallets[0].0)).unwrap();
+    //send(&wallets[2], wallets[0].0, 10000, Some(wallets[0].0)).unwrap();
 }

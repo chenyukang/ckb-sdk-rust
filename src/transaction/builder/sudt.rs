@@ -88,6 +88,26 @@ impl SudtTransactionBuilder {
             .build();
         self.add_output_and_data(output, output_data);
     }
+
+    /// Add an output cell with the given lock script and sudt amount
+    pub fn add_output_with_capacity<S: Into<Script>>(
+        &mut self,
+        output_lock_script: S,
+        sudt_amount: u128,
+        capacity: u64,
+    ) {
+        let type_script = build_sudt_type_script(
+            self.configuration.network_info(),
+            &self.sudt_owner_lock_script,
+        );
+        let output_data = sudt_amount.to_le_bytes().pack();
+        let dummy_output = CellOutput::new_builder()
+            .lock(output_lock_script.into())
+            .type_(Some(type_script).pack())
+            .build();
+        let output = dummy_output.as_builder().capacity(capacity.pack()).build();
+        self.add_output_and_data(output, output_data);
+    }
 }
 
 fn parse_u128(data: &[u8]) -> Result<u128, TxBuilderError> {
@@ -102,7 +122,7 @@ fn parse_u128(data: &[u8]) -> Result<u128, TxBuilderError> {
 }
 
 impl SudtTransactionBuilder {
-    pub fn check(&self) -> Result<u128, TxBuilderError> {
+    pub fn check(&self) -> Result<(u64, u128), TxBuilderError> {
         let Self {
             configuration,
             input_iter,
@@ -112,17 +132,21 @@ impl SudtTransactionBuilder {
 
         let sudt_type_script =
             build_sudt_type_script(configuration.network_info(), &sudt_owner_lock_script);
-        eprintln!("sudt_type_script: {:?}", sudt_type_script);
+        //eprintln!("sudt_type_script: {:?}", sudt_type_script);
         let mut sudt_input_iter = input_iter.clone();
         sudt_input_iter.set_type_script(Some(sudt_type_script));
 
-        let mut sum = 0;
+        let mut udt_sum = 0;
+        let mut ckb_amount: u64 = 0;
         for input in sudt_input_iter {
             let input = input?;
-            let input_amount = parse_u128(input.live_cell.output_data.as_ref())?;
-            sum += input_amount;
+            let capacity: u64 = input.live_cell.output.capacity().unpack();
+            let udt_amount = parse_u128(input.live_cell.output_data.as_ref())?;
+            eprintln!("cell capacity: {}, udt_amount: {}", capacity, udt_amount);
+            udt_sum += udt_amount;
+            ckb_amount += capacity;
         }
-        Ok(sum)
+        Ok((ckb_amount, udt_sum))
     }
 }
 
@@ -154,10 +178,10 @@ impl CkbTransactionBuilder for SudtTransactionBuilder {
         if owner_mode {
             inner_build(tx, change_builder, input_iter, &configuration, contexts)
         } else {
-            eprintln!("sudt_owner_lock_script: {:?}", sudt_owner_lock_script);
+            //eprintln!("sudt_owner_lock_script: {:?}", sudt_owner_lock_script);
             let sudt_type_script =
                 build_sudt_type_script(configuration.network_info(), &sudt_owner_lock_script);
-            eprintln!("sudt_type_script: {:?}", sudt_type_script);
+            //eprintln!("sudt_type_script: {:?}", sudt_type_script);
             let mut sudt_input_iter = input_iter.clone();
             sudt_input_iter.set_type_script(Some(sudt_type_script));
 
@@ -168,7 +192,7 @@ impl CkbTransactionBuilder for SudtTransactionBuilder {
                 .collect::<Result<Vec<u128>, TxBuilderError>>()
                 .map(|u128_vec| u128_vec.iter().sum())?;
 
-            eprintln!("outputs_sudt_amount: {}", outputs_sudt_amount);
+            //eprintln!("outputs_sudt_amount: {}", outputs_sudt_amount);
             let mut inputs_sudt_amount = 0;
 
             for input in sudt_input_iter {
